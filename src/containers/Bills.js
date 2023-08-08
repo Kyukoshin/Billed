@@ -35,7 +35,7 @@ export default class {
       .then(snapshot => {
         const bills = snapshot
           .slice() // make sure original array not impacted
-          .sort((a, b) => new Date(a.date) - new Date(b.date)) // sort by date before displaying it
+          .sort((a, b) => new Date(b.date) - new Date(a.date)) // sort by date before displaying it
           .map(doc => {
             try {
               return {
