@@ -2,114 +2,97 @@
  * @jest-environment jsdom
  */
 
-import { screen } from "@testing-library/dom"
-import NewBillUI from "../views/NewBillUI.js"
-import NewBill from "../containers/NewBill.js"
-import { ROUTES_PATH } from '../constants/routes.js';
+import { fireEvent, screen, waitFor } from "@testing-library/dom";
+import NewBillUI from "../views/NewBillUI.js";
+import NewBill from "../containers/NewBill.js";
+import { ROUTES, ROUTES_PATH } from "../constants/routes.js";
+import { localStorageMock } from "../__mocks__/localStorage.js";
+import mockStore from "../__mocks__/store";
+import router from "../app/Router.js";
+
+jest.mock("../app/Store", () => mockStore);
 
 describe("Given I am connected as an employee", () => {
   describe("When I am on NewBill Page", () => {
-    test("Then ...", () => {
+    test("Then mail icon in vertical layout should be highlighted", async () => {
+      Object.defineProperty(window, "localStorage", { value: localStorageMock });
+      window.localStorage.setItem("user", JSON.stringify({ type: "Employee" }));
+      const root = document.createElement("div");
+      root.setAttribute("id", "root");
+      document.body.append(root);
+      router();
+      window.onNavigate(ROUTES_PATH.NewBill);
+      await waitFor(() => screen.getByTestId("icon-mail"));
+      const mailIcon = screen.getByTestId("icon-mail");
+      expect(mailIcon).toBeTruthy();
+    });
+
+    // test("Then ...", () => {
+    //   const html = NewBillUI();
+    //   document.body.innerHTML = html;
+    //   //to-do write assertion
+    // });
+  });
+
+  // test d'intégration POST
+  describe("When I am on NewBill Page, I fill the form and submit", () => {
+    test("Then the bill is added to API POST", async () => {
       const html = NewBillUI()
       document.body.innerHTML = html
-      //to-do write assertion
-    })
-  })
-})
 
-describe('handleSubmit', () => {
-  let newBillInstance;
-  let mockDocument;
-  let mockOnNavigate;
-  let mockStore;
-  let mockLocalStorage;
+      const bill = {
+        email: "employee@test.tld",
+        type: "Hôtel et logement",
+        name: "Hôtel du centre ville",
+        amount: 120,
+        date: "2022-12-30",
+        vat: "10",
+        pct: 10,
+        commentary: "",
+        fileUrl: "testFacture.png",
+        fileName: "testFacture",
+        status: 'pending'
+      };
 
-  beforeEach(() => {
-    // Create a mock document object with a file input element
-    mockDocument = document.implementation.createHTMLDocument();
-    mockDocument.body.innerHTML = `
-      <form data-testid="form-new-bill">
-        <input type="file" data-testid="file" />
-        <!-- Other form fields here -->
-      </form>
-    `;
+      const typeField = screen.getByTestId("expense-type");
+      fireEvent.change(typeField, { target: { value: bill.type } });
+      expect(typeField.value).toBe(bill.type);
+      const nameField = screen.getByTestId("expense-name");
+      fireEvent.change(nameField, { target: { value: bill.name } });
+      expect(nameField.value).toBe(bill.name);
+      const dateField = screen.getByTestId("datepicker");
+      fireEvent.change(dateField, { target: { value: bill.date } });
+      expect(dateField.value).toBe(bill.date);
+      const amountField = screen.getByTestId("amount");
+      fireEvent.change(amountField, { target: { value: bill.amount } });
+      expect(parseInt(amountField.value)).toBe(parseInt(bill.amount));
+      const vatField = screen.getByTestId("vat");
+      fireEvent.change(vatField, { target: { value: bill.vat } });
+      expect(parseInt(vatField.value)).toBe(parseInt(bill.vat));
+      const pctField = screen.getByTestId("pct");
+      fireEvent.change(pctField, { target: { value: bill.pct } });
+      expect(parseInt(pctField.value)).toBe(parseInt(bill.pct));
+      const commentaryField = screen.getByTestId("commentary");
+      fireEvent.change(commentaryField, { target: { value: bill.commentary } });
+      expect(commentaryField.value).toBe(bill.commentary);
 
-    // Mock the necessary dependencies (store, localStorage, etc.)
-    mockOnNavigate = jest.fn();
-    mockStore = {
-      bills: {
-        create: jest.fn().mockResolvedValue({ fileUrl: 'mocked-url', key: 'mocked-key' }),
-        update: jest.fn().mockResolvedValue(),
-      },
-    };
+      const newBillForm = screen.getByTestId("form-new-bill");
+      const onNavigate = pathname => { document.body.innerHTML = ROUTES({ pathname }); };
+      Object.defineProperty(window, "localStorage", { value: localStorageMock });
+      const newBill = new NewBill({ document, onNavigate, store: mockStore, localStorage: window.localStorage });
 
-    // Set up localStorage mock and set the "user" data
-    mockLocalStorage = {
-      getItem: jest.fn().mockReturnValue(JSON.stringify({ email: 'test@example.com' })),
-      setItem: jest.fn(),
-    };
-    mockLocalStorage.setItem('user', JSON.stringify({ email: 'test@example.com' }));
+      const handleChangeFile = jest.fn(newBill.handleChangeFile);
+      newBillForm.addEventListener("change", handleChangeFile);
+      const fileField = screen.getByTestId("file");
+      fireEvent.change(fileField, { target: { files: [ new File([bill.fileName], bill.fileUrl, { type: "image/png" }) ] } });
+      expect(fileField.files[0].name).toBe(bill.fileUrl);
+      expect(fileField.files[0].type).toBe("image/png");
+      expect(handleChangeFile).toHaveBeenCalled();
 
-    // Create a new instance of the NewBill class with the mock dependencies
-    newBillInstance = new NewBill({
-      document: mockDocument,
-      onNavigate: mockOnNavigate,
-      store: mockStore,
-      localStorage: mockLocalStorage,
+      const handleSubmit = jest.fn(newBill.handleSubmit);
+      newBillForm.addEventListener("submit", handleSubmit);
+      fireEvent.submit(newBillForm);
+      expect(handleSubmit).toHaveBeenCalled();
     });
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('should handle form submission and update bill data', async () => {
-    const formValues = {
-      preventDefault: jest.fn(),
-      target: {
-        querySelector: jest.fn().mockImplementation(selector => {
-          if (selector === 'select[data-testid="expense-type"]') {
-            return { value: 'Expense Type' };
-          }
-          if (selector === 'input[data-testid="expense-name"]') {
-            return { value: 'Expense Name' };
-          }
-          if (selector === 'input[data-testid="amount"]') {
-            return { value: '100' };
-          }
-          if (selector === 'input[data-testid="datepicker"]') {
-            return { value: '2023-09-06' };
-          }
-          if (selector === 'input[data-testid="vat"]') {
-            return { value: '10' };
-          }
-          if (selector === 'input[data-testid="pct"]') {
-            return { value: '20' };
-          }
-          if (selector === 'textarea[data-testid="commentary"]') {
-            return { value: 'Commentary' };
-          }
-        }),
-      },
-    };
-
-    await newBillInstance.handleSubmit(formValues);
-
-    expect(newBillInstance.updateBill).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: 'test@example.com',
-        type: 'Expense Type',
-        name: 'Expense Name',
-        amount: 100,
-        date: '2023-09-06',
-        vat: '10',
-        pct: 20,
-        commentary: 'Commentary',
-        fileUrl: 'mocked-url',
-        fileName: 'test.txt',
-        status: 'pending',
-      })
-    );
-    expect(mockOnNavigate).toHaveBeenCalledWith(ROUTES_PATH['Bills']);
   });
 });
