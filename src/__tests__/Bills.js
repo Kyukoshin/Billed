@@ -11,6 +11,8 @@ import Bills from "../containers/Bills.js";
 import { ROUTES, ROUTES_PATH } from "../constants/routes.js";
 import { localStorageMock } from "../__mocks__/localStorage.js";
 import mockStore from "../__mocks__/store";
+import { mockBillsError404 } from '../__mocks__/error404.js';
+import { mockBillsError500 } from '../__mocks__/error500.js';
 import router from "../app/Router.js";
 
 // Mock the store for testing purposes
@@ -125,10 +127,8 @@ describe("Given I am connected as an employee", () => {
 
     // Define the seventh test case (API error with 404 message)
     test("fetches bills from an API and fails with 404 message error", async () => {
-      mockStore.bills.mockImplementationOnce(() => {
-        return { list: () => { return Promise.reject(new Error("Erreur 404")); }};
-      });
-
+      mockStore.bills.mockImplementationOnce(() => mockBillsError404);
+    
       window.onNavigate(ROUTES_PATH.Bills);
       await new Promise(process.nextTick);
       const message = await screen.getByText(/Erreur 404/);
@@ -137,10 +137,8 @@ describe("Given I am connected as an employee", () => {
 
     // Define the eighth test case (API error with 500 message)
     test("fetches messages from an API and fails with 500 message error", async () => {
-      mockStore.bills.mockImplementationOnce(() => {
-        return { list: () => { return Promise.reject(new Error("Erreur 500")); }};
-      });
-
+      mockStore.bills.mockImplementationOnce(() => mockBillsError500);
+    
       window.onNavigate(ROUTES_PATH.Bills);
       await new Promise(process.nextTick);
       const message = await screen.getByText(/Erreur 500/);
